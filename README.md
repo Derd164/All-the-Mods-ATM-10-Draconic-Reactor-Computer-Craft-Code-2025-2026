@@ -21,7 +21,7 @@ A new tutorial created by me (Derd164) will be available very soon!
   * adjustable
 * immediate shutdown and charge upon your field strength going below 5%
   * adjustable
-  * reactor will activate upon a successful charge
+  * reactor will activate upon a successful charge [CURRENTLY BUGGED, requires manual activation]
 * immediate shutdown when your temperature goes above 8000C
   * adjustable
   * reactor will activate upon temperature cooling down to 3000C [CURRENTLY BUGGED, requires manual reactivation]
@@ -41,17 +41,15 @@ A new tutorial created by me (Derd164) will be available very soon!
 * a bunch of network cable
 
 ### installation
-* your reactor output flux gate must be setup so that one side of it and one of your stabilizers touches a side of the advanced computer
-* by default, flux gate should touch the right side, stabilizer should touch the back of the computer
+* your advanced computer should be setup so that the top touches one of the reactor stabilizers with flux gates on both sides. The [WIP] tutorial will make things clearer
   * if you want to use different sides you need to modify `startup` after you have installed this and specify the sides
-* connect a modem to your input flux gate (the one connected to your reactor energy injector)
 * connect a modem to your advanced computer
 * setup your monitors to be a 3x3 and connect a modem to anywhere but the front
-* run network cable to all 3 modems
+* run network cable to the monitor
 * install this code via running the install script using these commands :
 
 ```
-> pastebin get Ls1Wg3QQ install
+> wget https://raw.githubusercontent.com/Derd164/All-the-Mods-ATM-10-Draconic-Reactor-Computer-Craft-Code-2025-2026/master/install.lua install
 > install
 ```
 * modify `startup` if you wish to configure/alter any variables mentioned in the feature list, you'll find them at the top of the file
@@ -70,4 +68,4 @@ A new tutorial created by me (Derd164) will be available very soon!
 ```
 
 ### known issues
-* there is a problem with **skyfactory 2.5** and **pastebin**, see workarounds [here](https://github.com/acidjazz/drmon/issues/9#issuecomment-277910288)
+* there is some cleaning up to do in general. Nothing that breaks the functions themselves, mind you.

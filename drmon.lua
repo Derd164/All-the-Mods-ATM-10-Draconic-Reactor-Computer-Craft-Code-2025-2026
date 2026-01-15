@@ -2,6 +2,7 @@
 local reactorSide = "top"
 local fluxgateSide = "right"
 local inputfluxgateSide = "left"
+local relaySide = "bottom"
 
 local targetStrength = 30 -- lower = more efficient, but less safe
 local maxTemperature = 8000
@@ -23,14 +24,11 @@ local curInputGate   = 222000
 
 -- auto output gate control
 local autoOutputGate = 1       -- 1 = auto, 0 = manual
-local prevTemp = 2000
+local prevTemp = nil
 local fuelPercent
 
 -- auto output gate tuning
 local outputKpSat   = 10000   -- smaller = smoother, less bounce
-local Kp = 0
-local Ki = 5
-local Kd = 50
 local tempIntegral = 0
 --targetTemperature = targetTemperature + 1 --[[ Band-aid solution as the reactor tends to settle
     --around 1 degree less than targetTemperature due to internal delays]]
@@ -53,9 +51,9 @@ local emergencyTemp   = false
 local newReactorChecked = false
 
 monitor      = f.periphSearch("monitor")
+reactor      = f.periphSearch("draconic_reactor")
 inputfluxgate = peripheral.wrap(inputfluxgateSide)
 fluxgate     = peripheral.wrap(fluxgateSide)
-reactor      = peripheral.wrap(reactorSide)
 
 if monitor == nil then
   error("No valid monitor was found")
@@ -319,7 +317,7 @@ function update()
     end
     
     -- are we charging? open the floodgates
-    if ri.status == "charging" then
+    if ri.status == "charging" or ri.status == "warming_up" then
       inputfluxgate.setSignalLowFlow(900000)
       emergencyCharge = false
     end
@@ -331,7 +329,7 @@ function update()
     end
 
     -- are we charged? lets activate
-    if ri.status == "charged" and activateOnCharged == 1 then
+    if (ri.status == "charged" or (ri.status == "warming_up" and ri.temperature >= 2000)) and activateOnCharged == 1 then
       reactor.activateReactor()
     end
 
@@ -353,47 +351,49 @@ function update()
   if autoOutputGate == 1 and ri.status == "running" then
   
     local desiredFlow
-    local tempError
+    local rawError = targetTemperature - ri.temperature
+    local tempError = rawError
+    tempError = (tempError >= 0 and 1 or -1) * math.max(math.abs(tempError), 25) -- Min magnitude of tempError = 25
     local currentFlow = fluxgate.getSignalLowFlow() or 0
-    local desiredFlow = currentFlow
-        
+    local tempPercent = ri.temperature / targetTemperature
+    prevTemp = prevTemp or ri.temperature -- one time on startup, make prevTemp = ri.temperature
+    local dK = ri.temperature - prevTemp
+    local dt = 0.1
+    local Kp = math.exp(math.max(tempError/targetTemperature, 0))
+    local Ki = Kp
+    local Kd = 5 * tempPercent
+    if dK <= 0 then Kd = 1 end
+    local boost = 0
+
     ----------------------------------------------------------------
     -- Keep temperature near targetTemperature while staying above targetSatPercent
     ----------------------------------------------------------------
-    
-    -- Temperature error: positive if we're HOTTER than target, negative if colder
-    local tempError = ri.temperature - targetTemperature
-    tempError = math.max(math.abs(tempError), 1) * (tempError >= 0 and 1 or -1) -- guarantees |tempError| >= 1
-    local tempPercent = targetTemperature / ri.temperature
-    
-    Kp = math.min(math.exp(math.abs(tempError)/targetTemperature), 20)
-    Ki = 1 / math.max(math.abs(ri.temperature - prevTemp), 1) -- Temperature not changing much? Let Ki be more aggressive
-    Kd = math.min(math.abs(ri.temperature - prevTemp) / math.max((math.abs(ri.temperature - targetTemperature)/targetTemperature), 0.01), 50) -- Temperature changing too quickly? Let Kd be more aggressive
-    if (ri.temperature > targetTemperature) or (Kp > 20) then
-      Kp = 20 -- if significantly over targetTemperature, allow for more drastic changes
+    if dK <= 0 and rawError > 5 then
+      boost = 1
     end
     
-    tempIntegral = (math.max(math.abs(tempError), 6) * (tempError >= 0 and 1 or -1) * 0.1 + tempIntegral) * math.min(1/math.exp(math.abs(tempError)/targetTemperature), 0.955) -- 0.1 is change in time
-    local tempDeriv = (ri.temperature - prevTemp) / 0.1
-    if satPercent > targetSatPercent or ri.temperature > targetTemperature then
-    desiredFlow = currentFlow - (tempError * Kp) - 10 * (tempIntegral * Ki) - (tempDeriv * Kd) -- tempIntegral doesn't work as intended, but is still neccessary.
+    if math.abs(rawError) > 0.01 then
+      tempIntegral = tempIntegral + rawError * 0.1 - dK/0.1 * Kd + boost
+    end
+    local tempDeriv = dK/dt
+    tempIntegral = math.max(tempIntegral, 0)
+    tempIntegral = math.min(tempIntegral, 500)
+    tempIntegral = tempIntegral
+    local netChange = tempError * Kp + tempIntegral - tempDeriv -- * Kd
+    currentFlow = currentFlow + netChange
+    if satPercent > targetSatPercent or netChange < 0 then
+      fluxgate.setSignalLowFlow(currentFlow)
     end
     prevTemp = ri.temperature
-    if desiredFlow < 3020000 then
-      desiredFlow = 3020000
-    end
-    if (satPercent > targetSatPercent or ri.temperature > targetTemperature + 0.1) and math.abs(tempError - 1) > 0.1 then -- only allow changes if we're above targetSatPercent, above temperature, and more than half 1/10th of a degree away
-    fluxgate.setSignalLowFlow(desiredFlow)
-    end
   end
 
     ----------------------------------------------------------------
     -- safeguards
     ----------------------------------------------------------------
     -- out of fuel, kill it
-    if fuelPercent <= 10 then
+    if fuelPercent <= 20 then
       reactor.stopReactor()
-      action = "Fuel below 10%, refuel"
+      action = "Fuel below 20%, refuel"
     end
 
     -- field strength is too dangerous, kill and try and charge it before it blows
@@ -410,11 +410,22 @@ function update()
       action = "Temp > " .. maxTemperature
       emergencyTemp = true
     end
+    
+    -- blow up? Place a cardboard box
+    local relay = peripheral.find("redstone_relay")
+    if ri.status == "beyond_hope" then
+      relay.setOutput(relaySide, false)
+      sleep(1)
+      relay.setOutput(relaySide, true)
+    else
+      relay.setOutput(relaySide, true)
+    end
 
     -- flip buffer
     win.setVisible(true)
     win.redraw()
     win.setVisible(false)
+    
     
     ----------------------------------------------------------------
     -- NEW REACTOR CHECK (run once per boot)
@@ -422,7 +433,7 @@ function update()
     if (not newReactorChecked) then
       -- brand-new core: 100% fuel remaining
       if fuelPercent >= 99.9 then
-        fluxgate.setSignalLowFlow(3020000)
+        fluxgate.setSignalLowFlow(3000000)
         inputfluxgate.setSignalLowFlow(222000)
         curInputGate = 222000        -- also reset manual input setting
         autoInputGate = 1
@@ -430,10 +441,14 @@ function update()
       end
       newReactorChecked = true
     end
-    if (ri.status == "stopping") or (ri.status == "cold") then
-      cFlow = 3020000
+    if ri.status ~= "running" and ri.status ~= "cold" then
+      cFlow = 3000000
       fluxgate.setSignalLowFlow(cFlow)
       newReactorChecked = false
+      tempIntegral = 0
+    end
+    if ri.status == "cold" then
+      inputfluxgate.setSignalLowFlow(0)
     end
 
     sleep(0.1)

@@ -12,8 +12,7 @@ NB: This is for Minecraft 1.21.1. You will need to edit references within the co
 
 
 ### tutorial
-you can find a very well made youtube tutorial on how to set this up [here](https://www.youtube.com/watch?v=8rBhQP1xqEU) , thank you [The MindCrafters](https://www.youtube.com/channel/UCf2wEy4_BbYpAQcgvN26OaQ)
-A new tutorial created by me (Derd164) will be available very soon!
+you can find a very well made youtube tutorial on how to set this up [here](https://www.youtube.com/watch?v=USo-2z7aXPw&t=1s)
 
 ### features
 * uses a 3x3 advanced computer touchscreen monitor to interact with your reactor
@@ -39,9 +38,14 @@ A new tutorial created by me (Derd164) will be available very soon!
 * 9 advanced monitors
 * 3 wired modems, wireless will not work
 * a bunch of network cable
+* 2 Flux Gates
+* 3 Flux Plugs
+* 3 Flux Points
+* A giant energy storage
+* At least 100M FE to kickstart
 
 ### installation
-* your advanced computer should be setup so that the top touches one of the reactor stabilizers with flux gates on both sides. The [WIP] tutorial will make things clearer
+* your advanced computer should be setup with flux gates on both sides. The tutorial will make things clearer.
   * if you want to use different sides you need to modify `startup` after you have installed this and specify the sides
 * connect a modem to your advanced computer
 * setup your monitors to be a 3x3 and connect a modem to anywhere but the front

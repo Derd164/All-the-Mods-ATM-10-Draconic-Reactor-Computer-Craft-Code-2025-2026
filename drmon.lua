@@ -6,7 +6,7 @@ local relaySide = "bottom"
 
 local targetStrength = 30 -- lower = more efficient, but less safe
 local maxTemperature = 8000
-local targetTemperature = 7995
+local targetTemperature = 7950
 local safeTemperature = 3000
 local targetSatPercent = 10 -- 10 at minimum
 local lowestFieldPercent = 10 -- recommended 10 at minimum
